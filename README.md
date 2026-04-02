@@ -10,6 +10,14 @@ Phone → WebSocket → Bridge Server → Unix Socket → GGCoder
 </strong>
 </p>
 
+## Why
+
+- **Control your AI coding agent from your phone** — send prompts, watch it work in real-time, abort when needed
+- **Bridges local Unix sockets to a mobile-friendly chat UI** over your Tailscale network — no cloud, no subscription, fully self-hosted
+- **Streams everything live**: thinking, tool calls, file reads/writes, bash commands — just like watching the terminal but from your couch
+- **Faithful to the TUI aesthetic**: animated shimmer indicator ("Cogitating...", "Surgifying..."), gradient GG logo, slash command autocomplete, dark mode everything
+- **Built in one session with GGCoder itself** — React + Vite PWA talking to a Node.js bridge server, ~30 files, zero external services
+
 ## Features
 
 - **📱 Mobile-first chat UI** — dark theme, streaming messages, collapsible tool calls
