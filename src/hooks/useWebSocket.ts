@@ -13,13 +13,22 @@ const MAX_DEBUG_EVENTS = 100;
 
 export function useWebSocket() {
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
-  const [lastMessage, setLastMessage] = useState<unknown>(null);
   const [debugEvents, setDebugEvents] = useState<DebugEvent[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
   const retryRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  // Queue messages sent before WS is open
   const pendingRef = useRef<ClientMessage[]>([]);
+
+  // Message queue: accumulate all incoming messages, never drop any
+  const queueRef = useRef<unknown[]>([]);
+  const [queueTick, setQueueTick] = useState(0);
+
+  /** Drain and return all queued messages since last call */
+  const drainMessages = useCallback((): unknown[] => {
+    const msgs = queueRef.current;
+    queueRef.current = [];
+    return msgs;
+  }, []);
 
   const addDebugEvent = useCallback(
     (direction: "in" | "out", data: string) => {
@@ -48,7 +57,6 @@ export function useWebSocket() {
       retryRef.current = 0;
       addDebugEvent("out", "[WebSocket connected]");
 
-      // Flush any pending messages
       for (const msg of pendingRef.current) {
         const json = JSON.stringify(msg);
         console.log(`[ws] Flushing pending: ${json}`);
@@ -68,7 +76,9 @@ export function useWebSocket() {
             : (e.data as string).slice(0, 200);
         console.log(`[ws] ← ${preview}`);
         addDebugEvent("in", preview);
-        setLastMessage(data);
+        // Push to queue and bump tick so consumers re-render
+        queueRef.current.push(data);
+        setQueueTick((t) => t + 1);
       } catch {
         console.log(`[ws] ← [malformed]`);
       }
@@ -107,7 +117,6 @@ export function useWebSocket() {
         addDebugEvent("out", json);
         ws.send(json);
       } else {
-        // Queue for later
         console.log(`[ws] → [queued, WS not open] ${json}`);
         addDebugEvent("out", `[queued] ${json}`);
         pendingRef.current.push(msg);
@@ -116,5 +125,5 @@ export function useWebSocket() {
     [addDebugEvent]
   );
 
-  return { status, lastMessage, send, debugEvents };
+  return { status, queueTick, drainMessages, send, debugEvents };
 }

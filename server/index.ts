@@ -1,5 +1,7 @@
 import express from "express";
 import { createServer } from "node:http";
+import { createServer as createHttpsServer } from "node:https";
+import fs from "node:fs";
 import { WebSocketServer, WebSocket } from "ws";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,9 +14,26 @@ import { RCClient } from "./rc-client.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env.PORT ?? "3847", 10);
+const HTTPS_PORT = parseInt(process.env.HTTPS_PORT ?? "3848", 10);
 
 const app = express();
 const server = createServer(app);
+
+// HTTPS server with Tailscale certs (if available)
+const certDir = path.join(__dirname, "..", "certs");
+const certPath = path.join(certDir, "server.crt");
+const keyPath = path.join(certDir, "server.key");
+let httpsServer: ReturnType<typeof createHttpsServer> | null = null;
+
+if (fs.existsSync(certPath) && fs.existsSync(keyPath)) {
+  httpsServer = createHttpsServer(
+    {
+      cert: fs.readFileSync(certPath),
+      key: fs.readFileSync(keyPath),
+    },
+    app
+  );
+}
 
 // Serve static files in production
 if (process.env.NODE_ENV === "production") {
@@ -42,14 +61,11 @@ if (process.env.NODE_ENV === "production") {
   });
 }
 
-// WebSocket server
-const wss = new WebSocketServer({ server, path: "/ws" });
-
 // Track per-client RC connections
 const clientConnections = new Map<WebSocket, RCClient>();
 let wsClientId = 0;
 
-wss.on("connection", (ws: WebSocket) => {
+function setupWebSocketClient(ws: WebSocket): void {
   const clientId = ++wsClientId;
   console.log(`[ws] Client #${clientId} connected`);
 
@@ -93,8 +109,6 @@ wss.on("connection", (ws: WebSocket) => {
         );
 
         // Disconnect existing RC connection if any
-        // removeAllListeners() in disconnect() prevents the race condition
-        // where the old client's async "disconnected" event deletes the new one
         const existing = clientConnections.get(ws);
         if (existing) {
           console.log(`[ws] Disconnecting previous RC connection`);
@@ -109,7 +123,6 @@ wss.on("connection", (ws: WebSocket) => {
           await rcClient.connect();
           clientConnections.set(ws, rcClient);
 
-          // Forward all RC events to the browser
           rcClient.on("event", (event: { type: string; [key: string]: unknown }) => {
             const { type, ...rest } = event;
             console.log(
@@ -119,7 +132,6 @@ wss.on("connection", (ws: WebSocket) => {
           });
 
           rcClient.on("disconnected", () => {
-            // Guard: only delete if WE are still the active connection
             if (clientConnections.get(ws) === rcClient) {
               console.log(
                 `[ws] RC session disconnected for client #${clientId}`
@@ -134,13 +146,11 @@ wss.on("connection", (ws: WebSocket) => {
             sendJson(ws, { event: "error", message: `RC error: ${err.message}` });
           });
 
-          // Send connected confirmation
           sendJson(ws, { event: "connected", sessionId });
           console.log(
             `[ws] → Client #${clientId}: connected to ${sessionId}`
           );
 
-          // Load and send conversation history
           const pidStr = sessionId.replace("rc-", "");
           const pid = parseInt(pidStr, 10);
           if (!isNaN(pid)) {
@@ -219,6 +229,12 @@ wss.on("connection", (ws: WebSocket) => {
   ws.on("error", (err) => {
     console.log(`[ws] Client #${clientId} error: ${err.message}`);
   });
+}
+
+// WebSocket server (HTTP)
+const wss = new WebSocketServer({ server, path: "/ws" });
+wss.on("connection", (ws: WebSocket) => {
+  setupWebSocketClient(ws);
 });
 
 function sendJson(ws: WebSocket, data: unknown): void {
@@ -234,6 +250,22 @@ function sendError(ws: WebSocket, clientId: number, message: string): void {
 }
 
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(`[server] Bridge server running on http://0.0.0.0:${PORT}`);
+  console.log(`[server] HTTP bridge server running on http://0.0.0.0:${PORT}`);
   console.log(`[server] WebSocket endpoint: ws://0.0.0.0:${PORT}/ws`);
 });
+
+if (httpsServer) {
+  // Attach a second WebSocket server to the HTTPS server
+  const wssSecure = new WebSocketServer({ server: httpsServer, path: "/ws" });
+  wssSecure.on("connection", (ws: WebSocket) => {
+    setupWebSocketClient(ws);
+  });
+
+  httpsServer.listen(HTTPS_PORT, "0.0.0.0", () => {
+    console.log(`[server] HTTPS bridge server running on https://0.0.0.0:${HTTPS_PORT}`);
+    console.log(`[server] Secure WebSocket endpoint: wss://0.0.0.0:${HTTPS_PORT}/ws`);
+  });
+} else {
+  console.log(`[server] No TLS certs found in ${certDir} — HTTPS disabled`);
+  console.log(`[server] Run: sudo tailscale cert --cert-file certs/server.crt --key-file certs/server.key <hostname>.ts.net`);
+}

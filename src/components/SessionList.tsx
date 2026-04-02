@@ -4,14 +4,16 @@ import type { ConnectionStatus } from "../hooks/useWebSocket";
 import GGLogo from "./GGLogo";
 
 interface Props {
-  lastMessage: unknown;
+  queueTick: number;
+  drainMessages: () => unknown[];
   send: (msg: ClientMessage) => void;
   connectionStatus: ConnectionStatus;
   onSelect: (sessionId: string, cwd?: string) => void;
 }
 
 export default function SessionList({
-  lastMessage,
+  queueTick,
+  drainMessages,
   send,
   connectionStatus,
   onSelect,
@@ -33,18 +35,17 @@ export default function SessionList({
 
   // Handle incoming session list
   useEffect(() => {
-    if (
-      lastMessage &&
-      typeof lastMessage === "object" &&
-      "event" in lastMessage
-    ) {
-      const msg = lastMessage as { event: string; sessions?: Session[] };
-      if (msg.event === "sessions" && msg.sessions) {
-        setSessions(msg.sessions);
-        setLoading(false);
+    const messages = drainMessages();
+    for (const raw of messages) {
+      if (raw && typeof raw === "object" && "event" in raw) {
+        const msg = raw as { event: string; sessions?: Session[] };
+        if (msg.event === "sessions" && msg.sessions) {
+          setSessions(msg.sessions);
+          setLoading(false);
+        }
       }
     }
-  }, [lastMessage]);
+  }, [queueTick, drainMessages]);
 
   // Pull-to-refresh
   const [pullY, setPullY] = useState(0);

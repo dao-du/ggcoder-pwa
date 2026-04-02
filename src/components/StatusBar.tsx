@@ -1,5 +1,7 @@
+import { useState } from "react";
 import type { ConnectionStatus } from "../hooks/useWebSocket";
 import GGLogo from "./GGLogo";
+import SettingsMenu from "./SettingsMenu";
 
 interface Props {
   connectionStatus: ConnectionStatus;
@@ -7,6 +9,10 @@ interface Props {
   onBack?: () => void;
   onToggleDebug: () => void;
   showDebug: boolean;
+  onNavigateSessions?: () => void;
+  planMode: boolean;
+  thinkingMode: boolean;
+  onSendCommand: (command: string) => void;
 }
 
 const STATUS_CONFIG: Record<
@@ -24,11 +30,16 @@ export default function StatusBar({
   onBack,
   onToggleDebug,
   showDebug,
+  onNavigateSessions,
+  planMode,
+  thinkingMode,
+  onSendCommand,
 }: Props) {
   const { color, label } = STATUS_CONFIG[connectionStatus];
+  const [showMenu, setShowMenu] = useState(false);
 
   return (
-    <header className="safe-top flex items-center gap-3 border-b border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-3">
+    <header className="safe-top relative flex items-center gap-3 border-b border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-3">
       {onBack && (
         <button
           onClick={onBack}
@@ -39,21 +50,25 @@ export default function StatusBar({
         </button>
       )}
       <div className="flex-1 truncate">
-        {sessionId ? (
-          <span className="font-mono text-sm font-medium text-[var(--text-primary)]">
-            {sessionId}
-          </span>
-        ) : (
+        <button
+          onClick={() => setShowMenu((p) => !p)}
+          className="appearance-none border-0 bg-transparent p-0 cursor-pointer"
+          aria-label="Open menu"
+        >
           <GGLogo variant="header" />
-        )}
+        </button>
       </div>
-      <button
-        onClick={onToggleDebug}
-        className={`rounded px-1.5 py-0.5 text-sm ${showDebug ? "bg-yellow-900 text-yellow-300" : "text-[var(--text-secondary)]"}`}
-        aria-label="Toggle debug panel"
-      >
-        🐛
-      </button>
+      {showMenu && (
+        <SettingsMenu
+          onClose={() => setShowMenu(false)}
+          onNavigateSessions={onBack ? undefined : onNavigateSessions}
+          planMode={planMode}
+          thinkingMode={thinkingMode}
+          onSendCommand={onSendCommand}
+          onToggleDebug={onToggleDebug}
+          showDebug={showDebug}
+        />
+      )}
       <div className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]">
         <span className={`h-2 w-2 rounded-full ${color}`} />
         <span>{label}</span>

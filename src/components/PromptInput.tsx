@@ -81,65 +81,87 @@ export default function PromptInput({ onSend, onAbort, isGenerating }: Props) {
     }
   };
 
+  const [isFocused, setIsFocused] = useState(false);
+
   return (
     <>
       <style>{`
-        @keyframes prompt-gradient-shift {
+        @keyframes input-glow {
           0% { background-position: 0% 50%; }
           50% { background-position: 100% 50%; }
           100% { background-position: 0% 50%; }
         }
-        .prompt-gradient-border {
-          background: linear-gradient(90deg, #fbbf24, #38bdf8, #34d399, #a78bfa, #fbbf24);
-          background-size: 300% 100%;
-          animation: prompt-gradient-shift 4s ease infinite;
-          border-radius: 10px;
-          padding: 1.5px;
-        }
-        .prompt-gradient-border > textarea {
-          border-radius: 8px;
-          border: none;
-        }
       `}</style>
-      <div className="safe-bottom border-t border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2">
-        <div className="relative flex items-end gap-2">
-          {showSlashMenu && (
-            <SlashCommandMenu
-              ref={menuRef}
-              query={slashQuery}
-              onSelect={handleSlashSelect}
-              onClose={() => setShowSlashMenu(false)}
-            />
-          )}
-          <div className="prompt-gradient-border flex-1">
-            <textarea
-              ref={textareaRef}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Send a prompt…"
-              rows={1}
-              className="w-full resize-none bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-secondary)]"
-            />
+      <div className="safe-bottom bg-[var(--bg-primary)] px-3 py-1.5">
+        {/* Animated gradient border wrapper */}
+        <div
+          style={{
+            padding: isGenerating ? 1 : 2,
+            borderRadius: 10,
+            background: isGenerating
+              ? "var(--border)"
+              : "linear-gradient(270deg, #3b82f6, #8b5cf6, #ec4899, #3b82f6)",
+            backgroundSize: isGenerating ? "100% 100%" : "300% 300%",
+            animation: isGenerating ? "none" : "input-glow 4s ease infinite",
+            opacity: isGenerating ? 0.5 : isFocused ? 1 : 0.6,
+            transition: "opacity 0.2s",
+          }}
+        >
+          {/* Inner solid background */}
+          <div
+            style={{
+              borderRadius: 8,
+              backgroundColor: "var(--bg-primary)",
+            }}
+          >
+            <div className="relative flex items-center gap-1.5">
+              {showSlashMenu && (
+                <SlashCommandMenu
+                  ref={menuRef}
+                  query={slashQuery}
+                  onSelect={handleSlashSelect}
+                  onClose={() => setShowSlashMenu(false)}
+                />
+              )}
+              <div className="flex-1">
+                <textarea
+                  ref={textareaRef}
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  onFocus={() => setIsFocused(true)}
+                  onBlur={() => setIsFocused(false)}
+                  placeholder="Send a prompt…"
+                  rows={1}
+                  className={[
+                    "w-full resize-none bg-transparent text-[15px] leading-tight outline-none",
+                    isGenerating
+                      ? "px-3 py-1.5 text-[var(--text-secondary)] placeholder:text-[var(--text-secondary)]/40"
+                      : "px-4 py-2.5 text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]",
+                    "transition-all duration-200",
+                  ].join(" ")}
+                />
+              </div>
+              {isGenerating ? (
+                <button
+                  onClick={onAbort}
+                  className="mr-1.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-600/80 text-xs text-white active:bg-red-700"
+                  aria-label="Abort"
+                >
+                  ■
+                </button>
+              ) : (
+                <button
+                  onClick={handleSubmit}
+                  disabled={!text.trim()}
+                  className="mr-1.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--accent)]/60 text-xs text-white disabled:opacity-30 active:opacity-80"
+                  aria-label="Send"
+                >
+                  ▶
+                </button>
+              )}
+            </div>
           </div>
-          {isGenerating ? (
-            <button
-              onClick={onAbort}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-600 text-white active:bg-red-700"
-              aria-label="Abort"
-            >
-              ■
-            </button>
-          ) : (
-            <button
-              onClick={handleSubmit}
-              disabled={!text.trim()}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--accent)] text-white disabled:opacity-40 active:opacity-80"
-              aria-label="Send"
-            >
-              ▶
-            </button>
-          )}
         </div>
       </div>
     </>

@@ -11,11 +11,21 @@ import MessageBubble from "./MessageBubble";
 import PromptInput from "./PromptInput";
 import ActivityIndicator from "./ActivityIndicator";
 
+interface SessionMeta {
+  cwd?: string;
+  model?: string;
+  planMode: boolean;
+  thinkingMode: boolean;
+}
+
 interface Props {
   sessionId: string;
-  lastMessage: unknown;
+  queueTick: number;
+  drainMessages: () => unknown[];
   send: (msg: ClientMessage) => void;
-  onSessionMeta?: (meta: { cwd?: string; model?: string; planMode: boolean }) => void;
+  onSessionMeta?: (metaOrUpdater: SessionMeta | ((prev: SessionMeta) => SessionMeta)) => void;
+  externalCommand?: string | null;
+  commandTick?: number;
 }
 
 type Action =
@@ -241,73 +251,105 @@ function reducer(state: State, action: Action): State {
   }
 }
 
-export default function ChatView({ sessionId, lastMessage, send, onSessionMeta }: Props) {
+export default function ChatView({ sessionId, queueTick, drainMessages, send, onSessionMeta, externalCommand, commandTick }: Props) {
   const [state, dispatch] = useReducer(reducer, {
     messages: [], isGenerating: false, activity: { ...INITIAL_ACTIVITY }, completion: null, turnCount: 0,
   });
   const scrollRef = useAutoScroll([state.messages, state.isGenerating, state.completion]);
-  const processedRef = useRef<unknown>(null);
 
   useEffect(() => {
-    if (!lastMessage || lastMessage === processedRef.current) return;
-    processedRef.current = lastMessage;
-    const msg = lastMessage as { event: string; [key: string]: unknown };
-    if (!msg.event) return;
+    const messages = drainMessages();
+    for (const raw of messages) {
+      const msg = raw as { event: string; [key: string]: unknown };
+      if (!msg.event) continue;
 
-    switch (msg.event) {
-      case "connected":
-        dispatch({ type: "connected" });
-        break;
-      case "history":
-        dispatch({ type: "history", messages: msg.messages as HistoryMessage[] });
-        break;
-      case "text_delta":
-        dispatch({ type: "text_delta", text: msg.text as string });
-        break;
-      case "thinking_delta":
-        dispatch({ type: "thinking_delta", text: msg.text as string });
-        break;
-      case "tool_call_start":
-        dispatch({
-          type: "tool_call_start", tool: msg.tool as string,
-          id: msg.id as string, params: msg.params as Record<string, unknown>,
-        });
-        break;
-      case "tool_call_update":
-        dispatch({ type: "tool_call_update", id: msg.id as string, output: msg.output as string });
-        break;
-      case "tool_call_end":
-        dispatch({ type: "tool_call_end", id: msg.id as string });
-        break;
-      case "turn_end":
-        dispatch({ type: "turn_end" });
-        break;
-      case "agent_done":
-        dispatch({ type: "agent_done" });
-        break;
-      case "result":
-        dispatch({ type: "result" });
-        break;
-      // Track session meta from events
-      case "session_start":
-      case "model_change":
-        if (onSessionMeta) {
-          onSessionMeta({
-            cwd: msg.cwd as string | undefined,
-            model: msg.model as string | undefined,
-            planMode: false,
-          });
+      switch (msg.event) {
+        case "connected":
+          dispatch({ type: "connected" });
+          break;
+        case "history":
+          dispatch({ type: "history", messages: msg.messages as HistoryMessage[] });
+          break;
+        case "text_delta": {
+          const text = msg.text as string;
+          dispatch({ type: "text_delta", text });
+          // Detect plan mode toggling from agent response text
+          if (onSessionMeta && text.includes("Plan mode")) {
+            if (text.includes("enabled") || text.includes("on")) {
+              onSessionMeta((prev) => ({ ...prev, planMode: true }));
+            } else if (text.includes("disabled") || text.includes("off")) {
+              onSessionMeta((prev) => ({ ...prev, planMode: false }));
+            }
+          }
+          // Detect thinking mode toggling from agent response text
+          if (onSessionMeta && (text.includes("Thinking") || text.includes("thinking"))) {
+            if (text.includes("enabled") || text.includes("on")) {
+              onSessionMeta((prev) => ({ ...prev, thinkingMode: true }));
+            } else if (text.includes("disabled") || text.includes("off")) {
+              onSessionMeta((prev) => ({ ...prev, thinkingMode: false }));
+            }
+          }
+          break;
         }
-        break;
+        case "thinking_delta":
+          dispatch({ type: "thinking_delta", text: msg.text as string });
+          break;
+        case "tool_call_start":
+          dispatch({
+            type: "tool_call_start", tool: msg.tool as string,
+            id: msg.id as string, params: msg.params as Record<string, unknown>,
+          });
+          break;
+        case "tool_call_update":
+          dispatch({ type: "tool_call_update", id: msg.id as string, output: msg.output as string });
+          break;
+        case "tool_call_end":
+          dispatch({ type: "tool_call_end", id: msg.id as string });
+          break;
+        case "turn_end":
+          dispatch({ type: "turn_end" });
+          break;
+        case "agent_done":
+          dispatch({ type: "agent_done" });
+          break;
+        case "result":
+          dispatch({ type: "result" });
+          break;
+        // Track session meta from events
+        case "session_start":
+        case "model_change":
+          if (onSessionMeta) {
+            onSessionMeta({
+              cwd: msg.cwd as string | undefined,
+              model: msg.model as string | undefined,
+              planMode: false,
+              thinkingMode: true,
+            });
+          }
+          break;
+      }
     }
-  }, [lastMessage, onSessionMeta]);
+  }, [queueTick, drainMessages, onSessionMeta]);
+
+  // Handle external commands from FooterBar
+  const lastCommandTickRef = useRef(commandTick);
+  useEffect(() => {
+    if (commandTick !== lastCommandTickRef.current && externalCommand) {
+      lastCommandTickRef.current = commandTick;
+      const isSilent = externalCommand === "/think" || externalCommand === "/plan";
+      if (!isSilent) {
+        dispatch({ type: "user_prompt", text: externalCommand });
+      }
+      send({ action: "prompt", text: externalCommand });
+    }
+  }, [commandTick, externalCommand, send]);
 
   const handleSend = (text: string) => {
-    // Detect plan mode toggle
-    if (text === "/plan" && onSessionMeta) {
-      // Will be reflected when the agent responds
+    const trimmed = text.trim();
+    const isSilent = trimmed === "/think" || trimmed === "/plan";
+    if (!isSilent) {
+      dispatch({ type: "user_prompt", text });
     }
-    dispatch({ type: "user_prompt", text });
     send({ action: "prompt", text });
   };
 
@@ -345,7 +387,18 @@ export default function ChatView({ sessionId, lastMessage, send, onSessionMeta }
       </div>
 
       {state.isGenerating && (
-        <div className="border-t border-[var(--border)] px-4 py-3">
+        <div className="px-4 py-3" style={{ position: "relative" }}>
+          {/* Gradient top border for activity area */}
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 2,
+              background: "linear-gradient(90deg, #a855f7, #fbbf24, #60a5fa, #cbd5e1)",
+            }}
+          />
           <ActivityIndicator
             isActive={state.isGenerating}
             currentTool={state.activity.currentTool}

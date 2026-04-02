@@ -7,12 +7,13 @@ Self-hosted alternative to Claude Code's Remote Control — no subscription requ
 
 ## Architecture
 ```
-Phone (PWA) ←→ WebSocket ←→ Bridge Server (Node.js:3847) ←→ Unix Socket ←→ GGCoder RC
+Phone (PWA) ←→ WSS (HTTPS) ←→ Bridge Server (Node.js) ←→ Unix Socket ←→ GGCoder RC
 ```
 
 - **Frontend**: React + Vite + Tailwind CSS, built as a PWA with vite-plugin-pwa
 - **Bridge Server**: Express + `ws` library, serves static files + WebSocket endpoint on same port
 - **RC Protocol**: NDJSON over Unix domain sockets at `~/.gg/rc-<PID>.sock`
+- **HTTPS**: Tailscale-issued TLS certs in `certs/` — required for PWA install on mobile
 
 ## How to Run
 
@@ -24,9 +25,17 @@ npx vite build
 NODE_ENV=production npx tsx server/index.ts
 ```
 
-Server binds to `0.0.0.0:3847` for network access.
+- HTTP server: `http://0.0.0.0:3847` (local/dev)
+- HTTPS server: `https://0.0.0.0:3848` (PWA-ready, mobile install)
 
-Access via Tailscale: `http://<tailscale-ip>:3847/`
+Access via Tailscale: `https://dellxps.tailf4da52.ts.net:3848/`
+
+### TLS Certificate Setup
+```bash
+sudo tailscale cert --cert-file certs/server.crt --key-file certs/server.key dellxps.tailf4da52.ts.net
+sudo chown $USER:$USER certs/server.crt certs/server.key
+```
+Certs auto-renew via Tailscale. If expired, re-run the above.
 
 ## RC Socket Protocol
 

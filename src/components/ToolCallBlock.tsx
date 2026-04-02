@@ -13,6 +13,28 @@ const TOOL_ICONS: Record<string, string> = {
   web_search: "🔎",
 };
 
+const TOOL_LABELS: Record<string, (params: Record<string, unknown>) => string> = {
+  read: (p) => `Read ${fileName(p.file_path)}`,
+  bash: (p) => `Ran command${p.command ? `: ${truncate(String(p.command), 40)}` : ""}`,
+  edit: (p) => `Edited ${fileName(p.file_path)}`,
+  write: (p) => `Wrote ${fileName(p.file_path)}`,
+  find: (p) => `Found files${p.pattern ? ` matching ${truncate(String(p.pattern), 30)}` : ""}`,
+  grep: (p) => `Searched${p.pattern ? ` for "${truncate(String(p.pattern), 30)}"` : ""}`,
+  ls: (p) => `Listed ${truncate(String(p.path || "."), 30)}`,
+  web_fetch: (p) => `Fetched ${truncate(String(p.url || ""), 40)}`,
+  web_search: (p) => `Searched web${p.query ? `: ${truncate(String(p.query), 30)}` : ""}`,
+};
+
+function fileName(p: unknown): string {
+  const s = String(p || "");
+  const parts = s.split("/");
+  return parts[parts.length - 1] || s;
+}
+
+function truncate(s: string, max: number): string {
+  return s.length > max ? s.slice(0, max) + "…" : s;
+}
+
 const MAX_OUTPUT_LENGTH = 10000;
 
 interface Props {
@@ -22,13 +44,8 @@ interface Props {
 export default function ToolCallBlock({ toolCall }: Props) {
   const [expanded, setExpanded] = useState(false);
   const icon = TOOL_ICONS[toolCall.tool] ?? "🔧";
-
-  const paramsStr = Object.entries(toolCall.params)
-    .map(([k, v]) => {
-      const val = typeof v === "string" ? v : JSON.stringify(v);
-      return `${k}: ${val.length > 80 ? val.slice(0, 80) + "…" : val}`;
-    })
-    .join(", ");
+  const labelFn = TOOL_LABELS[toolCall.tool];
+  const label = labelFn ? labelFn(toolCall.params) : toolCall.tool;
 
   const output =
     toolCall.output.length > MAX_OUTPUT_LENGTH
@@ -36,36 +53,31 @@ export default function ToolCallBlock({ toolCall }: Props) {
       : toolCall.output;
 
   return (
-    <div className="my-1 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm"
-      >
-        <span>{icon}</span>
-        <span className="font-mono font-medium text-[var(--accent)]">
-          {toolCall.tool}
-        </span>
+    <button
+      onClick={() => setExpanded(!expanded)}
+      className="my-0.5 flex w-full flex-col rounded-lg border border-[var(--border)]/50 bg-[var(--bg-secondary)]/60 text-left transition-colors active:bg-[var(--bg-secondary)]"
+    >
+      <div className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs">
+        <span className="text-sm">{icon}</span>
+        <span className="text-[var(--text-secondary)]">{label}</span>
         {!toolCall.done && (
-          <span className="animate-pulse text-xs text-yellow-400">
-            running…
-          </span>
+          <span className="animate-pulse text-yellow-400">…</span>
         )}
-        <span className="ml-auto text-xs text-[var(--text-secondary)]">
+        <span className="ml-auto text-[var(--text-secondary)]/60">
           {expanded ? "▲" : "▼"}
         </span>
-      </button>
+      </div>
       {expanded && (
-        <div className="border-t border-[var(--border)] px-3 py-2">
-          <div className="mb-1 font-mono text-xs text-[var(--text-secondary)]">
-            {paramsStr}
-          </div>
-          {output && (
-            <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-all font-mono text-xs text-[var(--text-primary)]">
+        <div className="border-t border-[var(--border)]/30 px-2.5 py-2">
+          {output ? (
+            <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-all font-mono text-xs text-[var(--text-primary)]/80">
               {output}
             </pre>
+          ) : (
+            <span className="text-xs italic text-[var(--text-secondary)]">No output</span>
           )}
         </div>
       )}
-    </div>
+    </button>
   );
 }

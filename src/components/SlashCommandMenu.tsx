@@ -10,6 +10,7 @@ import {
 
 const COMMANDS = [
   { cmd: "/plan", desc: "Toggle plan mode (on/off)" },
+  { cmd: "/think", desc: "Toggle extended thinking (on/off)" },
   { cmd: "/plans", desc: "Open plans pane" },
   { cmd: "/model", desc: "Switch model" },
   { cmd: "/compact", desc: "Compact conversation" },
