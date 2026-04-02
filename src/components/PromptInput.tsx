@@ -92,7 +92,15 @@ export default function PromptInput({ onSend, onAbort, isGenerating }: Props) {
           100% { background-position: 0% 50%; }
         }
       `}</style>
-      <div className="safe-bottom bg-[var(--bg-primary)] px-3 py-1.5">
+      <div className="safe-bottom relative bg-[var(--bg-primary)] px-3 py-1.5">
+        {showSlashMenu && (
+          <SlashCommandMenu
+            ref={menuRef}
+            query={slashQuery}
+            onSelect={handleSlashSelect}
+            onClose={() => setShowSlashMenu(false)}
+          />
+        )}
         {/* Animated gradient border wrapper */}
         <div
           style={{
@@ -114,15 +122,7 @@ export default function PromptInput({ onSend, onAbort, isGenerating }: Props) {
               backgroundColor: "var(--bg-primary)",
             }}
           >
-            <div className="relative flex items-center gap-1.5">
-              {showSlashMenu && (
-                <SlashCommandMenu
-                  ref={menuRef}
-                  query={slashQuery}
-                  onSelect={handleSlashSelect}
-                  onClose={() => setShowSlashMenu(false)}
-                />
-              )}
+            <div className="flex items-center gap-1.5">
               <div className="flex-1">
                 <textarea
                   ref={textareaRef}
