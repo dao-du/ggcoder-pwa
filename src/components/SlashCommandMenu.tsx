@@ -9,6 +9,7 @@ import {
 } from "react";
 
 const COMMANDS = [
+  { cmd: "/stop", desc: "Stop the agent immediately" },
   { cmd: "/plan", desc: "Toggle plan mode (on/off)" },
   { cmd: "/think", desc: "Toggle extended thinking (on/off)" },
   { cmd: "/plans", desc: "Open plans pane" },

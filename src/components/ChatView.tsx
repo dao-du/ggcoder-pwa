@@ -38,6 +38,7 @@ type Action =
   | { type: "agent_done" }
   | { type: "result" }
   | { type: "user_prompt"; text: string }
+  | { type: "abort" }
   | { type: "connected" }
   | { type: "history"; messages: HistoryMessage[] };
 
@@ -164,6 +165,14 @@ function reducer(state: State, action: Action): State {
         completion: null,
         turnCount: 0,
       };
+
+    case "abort": {
+      const msgs = state.messages.map((m) => m.isStreaming ? { ...m, isStreaming: false } : m);
+      return {
+        ...state, messages: msgs, isGenerating: false,
+        activity: { ...INITIAL_ACTIVITY }, completion: null,
+      };
+    }
 
     case "text_delta": {
       const msgs = getOrCreateAssistantMsg(state.messages);
@@ -336,6 +345,10 @@ export default function ChatView({ sessionId, queueTick, drainMessages, send, on
   useEffect(() => {
     if (commandTick !== lastCommandTickRef.current && externalCommand) {
       lastCommandTickRef.current = commandTick;
+      if (externalCommand === "/stop") {
+        handleAbort();
+        return;
+      }
       const isSilent = externalCommand === "/think" || externalCommand === "/plan";
       if (!isSilent) {
         dispatch({ type: "user_prompt", text: externalCommand });
@@ -346,6 +359,10 @@ export default function ChatView({ sessionId, queueTick, drainMessages, send, on
 
   const handleSend = (text: string) => {
     const trimmed = text.trim();
+    if (trimmed === "/stop") {
+      handleAbort();
+      return;
+    }
     const isSilent = trimmed === "/think" || trimmed === "/plan";
     if (!isSilent) {
       dispatch({ type: "user_prompt", text });
@@ -355,6 +372,7 @@ export default function ChatView({ sessionId, queueTick, drainMessages, send, on
 
   const handleAbort = () => {
     send({ action: "abort" });
+    dispatch({ type: "abort" });
   };
 
   return (
