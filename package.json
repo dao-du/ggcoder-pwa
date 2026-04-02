@@ -1,0 +1,36 @@
+{
+  "name": "ggcoder-pwa",
+  "version": "1.0.0",
+  "description": "GGCoder Remote Control PWA",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -n server,vite -c blue,green \"tsx server/index.ts\" \"vite\"",
+    "build": "vite build",
+    "start": "NODE_ENV=production tsx server/index.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^5.2.1",
+    "glob": "^13.0.6",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "ws": "^8.20.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.2.2",
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.5.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@types/ws": "^8.18.1",
+    "@vitejs/plugin-react": "^5.2.0",
+    "concurrently": "^9.2.1",
+    "tailwindcss": "^4.2.2",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2",
+    "vite": "^7.3.1",
+    "vite-plugin-pwa": "^1.2.0"
+  }
+}
