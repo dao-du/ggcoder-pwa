@@ -108,7 +108,7 @@ export default function PromptInput({ onSend, onAbort, isGenerating }: Props) {
             borderRadius: 10,
             background: isGenerating
               ? "var(--border)"
-              : "linear-gradient(270deg, #3b82f6, #8b5cf6, #ec4899, #3b82f6)",
+              : "linear-gradient(270deg, #3b82f6, #7c9cf6, #e0e0e0, #3b82f6)",
             backgroundSize: isGenerating ? "100% 100%" : "300% 300%",
             animation: isGenerating ? "none" : "input-glow 4s ease infinite",
             opacity: isGenerating ? 0.5 : isFocused ? 1 : 0.6,
