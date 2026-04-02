@@ -111,7 +111,10 @@ bash scripts/restart.sh  # Kill old server, rebuild, start fresh
 ## Restart Script
 `scripts/restart.sh` — builds frontend, kills the old server on port 3847, starts a new production server, and verifies HTTP 200. Use this after any code change.
 
+## Auto-Launch
+The `gg` command (`~/bin/gg`) wraps `ggcoder --rc` and auto-starts the PWA bridge server if it's not already running. Usage: `gg` (or `gg --resume`, `gg "prompt"`, etc — all args are forwarded).
+
 ## Environment
 
-- Working directory: /tmp/ggcoder-pwa
+- Working directory: ~/projects/ggcoder-pwa
 - Platform: linux
